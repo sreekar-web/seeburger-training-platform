@@ -1,125 +1,163 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import StructureTree from "../components/StructureTree";
-import MappingCanvas from "../components/MappingCanvas";
+import BICMDEditor from "./BICMDEditor";
+import { parseBICMD } from "../utils/bicmdParser";
+import { sampleInput } from "../data/sampleInput";
+import { executeMapping } from "../utils/executeMapping";
 import {
     sourceStructure,
     targetStructure
 } from "../data/sampleStructures";
 
-const extractLoopContext = (path) => {
-    if (path.includes("PO1_LOOP")) return "PO1";
-    if (path.includes("N1_LOOP")) return "N1";
-    return null;
-};
-
 export default function MappingWorkspace() {
+    const [bicmdText, setBicmdText] = useState(`
+RULE RULE_1
+  FROM /X12_850/GS/ST/PO1_LOOP/PO1/PO101
+  TO   /Order/Items/Item/SKU
+  TYPE DIRECT
+  LOOP PO1[*]
+END
+`);
+
     const [rules, setRules] = useState([]);
-    const [selectedRuleId, setSelectedRuleId] = useState(null);
+    const [errors, setErrors] = useState([]);
+    const [preview, setPreview] = useState(null);
+    const [runtimeErrors, setRuntimeErrors] = useState([]);
 
-    const handleDropOnCanvas = (source) => {
-        const loopContext = extractLoopContext(source.path);
+    // 🔹 RULE-AWARE INSERTION
+    const insertSnippetRuleAware = (text, snippet) => {
+        const lines = text.split("\n");
 
-        const newRule = {
-            id: `RULE_${rules.length + 1}`,
-            sourcePath: source.path,
-            targetPath: null,
-            loopContext,
-            loopScope: "*",
-            transform: {
-                type: "DIRECT"
+        const incompleteRuleStart = findLastIncompleteRuleIndex(lines);
+
+        // Case 1: Add to last incomplete RULE
+        if (incompleteRuleStart !== null) {
+            for (let i = incompleteRuleStart + 1; i < lines.length; i++) {
+                if (lines[i].startsWith("END")) {
+                    lines.splice(i, 0, "  " + snippet);
+                    return lines.join("\n");
+                }
             }
-        };
+        }
 
-        setRules((prev) => [...prev, newRule]);
-        setSelectedRuleId(newRule.id);
-    };
+        // Case 2: Create new RULE
+        const ruleNumber = (text.match(/RULE /g) || []).length + 1;
 
-    const handleTargetSelect = (targetPath) => {
-        if (!selectedRuleId) return;
-
-        setRules((prev) =>
-            prev.map((r) =>
-                r.id === selectedRuleId
-                    ? { ...r, targetPath }
-                    : r
-            )
+        return (
+            text +
+            `\n\nRULE RULE_${ruleNumber}\n` +
+            `  ${snippet}\n` +
+            `END\n`
         );
     };
 
-    const selectedRule = rules.find((r) => r.id === selectedRuleId);
+
+    const findLastIncompleteRuleIndex = (lines) => {
+        let currentRule = null;
+
+        for (let i = 0; i < lines.length; i++) {
+            if (lines[i].startsWith("RULE ")) {
+                currentRule = {
+                    start: i,
+                    hasFrom: false,
+                    hasTo: false
+                };
+            }
+
+            if (currentRule) {
+                if (lines[i].trim().startsWith("FROM ")) currentRule.hasFrom = true;
+                if (lines[i].trim().startsWith("TO ")) currentRule.hasTo = true;
+
+                if (lines[i].startsWith("END")) {
+                    if (!currentRule.hasFrom || !currentRule.hasTo) {
+                        return currentRule.start;
+                    }
+                    currentRule = null;
+                }
+            }
+        }
+
+        return null;
+    };
+
+
+    // 🔹 BICMD → rules + validation
+    useEffect(() => {
+        const { rules, errors } = parseBICMD(bicmdText);
+        setRules(rules);
+        setErrors(errors);
+
+        // BIS behavior: preview invalidated on change
+        setPreview(null);
+        setRuntimeErrors([]);
+    }, [bicmdText]);
 
     return (
-        <div style={{ display: "flex", height: "100vh" }}>
+        <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
 
-            {/* SOURCE */}
-            <div style={{ width: "25%", borderRight: "1px solid #d1d5db", padding: "12px" }}>
-                <h3>Source</h3>
-                <StructureTree node={sourceStructure} />
+            {/* TOP: STRUCTURES */}
+            <div style={{ display: "flex", height: "40%", borderBottom: "1px solid #d1d5db" }}>
+
+                <div style={{ width: "50%", padding: "8px", overflow: "auto", borderRight: "1px solid #d1d5db" }}>
+                    <h4>Source Structure</h4>
+                    <StructureTree node={sourceStructure} />
+                </div>
+
+                <div style={{ width: "50%", padding: "8px", overflow: "auto" }}>
+                    <h4>Target Structure</h4>
+                    <StructureTree node={targetStructure} isTarget />
+                </div>
             </div>
 
-            {/* CANVAS */}
-            <MappingCanvas
-                rules={rules}
-                onSelectRule={setSelectedRuleId}
-                onDropSource={handleDropOnCanvas}
-            />
+            {/* PREVIEW BUTTON */}
+            <button
+                disabled={errors.length > 0}
+                onClick={() => {
+                    const { output, runtimeErrors } = executeMapping(rules, sampleInput);
+                    setPreview(output);
+                    setRuntimeErrors(runtimeErrors);
+                }}
+                style={{
+                    margin: "6px",
+                    opacity: errors.length > 0 ? 0.5 : 1,
+                    cursor: errors.length > 0 ? "not-allowed" : "pointer"
+                }}
+            >
+                ▶ Run Mapping Preview
+            </button>
 
-            {/* TARGET + PROPERTIES */}
-            <div style={{ width: "25%", padding: "12px" }}>
-                <h3>Target</h3>
-                <StructureTree
-                    node={targetStructure}
-                    isTarget
-                    onTargetSelect={handleTargetSelect}
+            {/* BICMD EDITOR */}
+            <div style={{ flex: 1 }}>
+                <BICMDEditor
+                    bicmd={bicmdText}
+                    onChange={setBicmdText}
+                    errors={errors}
+                    onDropSnippet={(snippet) => {
+                        setBicmdText(prev =>
+                            insertSnippetRuleAware(prev, snippet)
+                        );
+                    }}
                 />
-
-                <hr />
-
-                <h3>Rule Properties</h3>
-
-                {!selectedRule && (
-                    <p style={{ color: "#6b7280" }}>
-                        Select a rule from the canvas
-                    </p>
-                )}
-
-                {selectedRule && (
-                    <>
-                        <div><strong>ID:</strong> {selectedRule.id}</div>
-                        <div><strong>FROM:</strong> {selectedRule.sourcePath}</div>
-                        <div><strong>TO:</strong> {selectedRule.targetPath || "<select target>"}</div>
-
-                        {selectedRule.loopContext && (
-                            <div style={{ marginTop: "6px" }}>
-                                <label>
-                                    <strong>LOOP:</strong>{" "}
-                                    <select
-                                        value={selectedRule.loopScope}
-                                        onChange={(e) => {
-                                            const loopScope = e.target.value;
-                                            setRules((prev) =>
-                                                prev.map((r) =>
-                                                    r.id === selectedRule.id
-                                                        ? { ...r, loopScope }
-                                                        : r
-                                                )
-                                            );
-                                        }}
-                                    >
-                                        <option value="*">
-                                            {selectedRule.loopContext}[*] (All)
-                                        </option>
-                                        <option value="1">
-                                            {selectedRule.loopContext}[1] (First)
-                                        </option>
-                                    </select>
-                                </label>
-                            </div>
-                        )}
-                    </>
-                )}
             </div>
 
+            {/* PREVIEW OUTPUT */}
+            {preview && (
+                <div style={{ padding: "8px", borderTop: "1px solid #d1d5db" }}>
+                    <h4>Execution Preview</h4>
+                    <pre>{JSON.stringify(preview, null, 2)}</pre>
+
+                    {runtimeErrors.length > 0 && (
+                        <div style={{ color: "red" }}>
+                            <h4>Runtime Errors</h4>
+                            <ul>
+                                {runtimeErrors.map((e, i) => (
+                                    <li key={i}>{e}</li>
+                                ))}
+                            </ul>
+                        </div>
+                    )}
+                </div>
+            )}
         </div>
     );
 }

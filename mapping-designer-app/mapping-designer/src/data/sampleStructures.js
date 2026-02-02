@@ -3,11 +3,6 @@ export const sourceStructure = {
     type: "ROOT",
     children: [
         {
-            name: "ISA",
-            type: "SEGMENT",
-            children: []
-        },
-        {
             name: "GS",
             type: "SEGMENT",
             children: [
@@ -16,15 +11,8 @@ export const sourceStructure = {
                     type: "SEGMENT",
                     children: [
                         {
-                            name: "BEG",
-                            type: "SEGMENT",
-                            children: []
-                        },
-                        {
                             name: "N1_LOOP",
                             type: "LOOP",
-                            minOccurs: 1,
-                            maxOccurs: 200,
                             children: [
                                 {
                                     name: "N1",
@@ -41,8 +29,6 @@ export const sourceStructure = {
                         {
                             name: "PO1_LOOP",
                             type: "LOOP",
-                            minOccurs: 1,
-                            maxOccurs: 1000,
                             children: [
                                 {
                                     name: "PO1",
@@ -67,20 +53,6 @@ export const targetStructure = {
     name: "Order",
     type: "ROOT",
     children: [
-        {
-            name: "Header",
-            type: "NODE",
-            children: [
-                {
-                    name: "OrderNumber",
-                    type: "FIELD"
-                },
-                {
-                    name: "OrderDate",
-                    type: "FIELD"
-                }
-            ]
-        },
         {
             name: "Items",
             type: "NODE",
