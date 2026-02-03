@@ -1,40 +1,5 @@
 import StatusBadge from "../components/StatusBadge";
 
-const ALL_MESSAGES = [
-    {
-        id: "MSG001",
-        partner: "Walmart",
-        docType: "850",
-        direction: "INBOUND",
-        status: "FAILED",
-        errorType: "VALIDATION"
-    },
-    {
-        id: "MSG002",
-        partner: "CVS",
-        docType: "810",
-        direction: "OUTBOUND",
-        status: "SUCCESS",
-        errorType: null
-    },
-    {
-        id: "MSG003",
-        partner: "Target",
-        docType: "856",
-        direction: "INBOUND",
-        status: "WAITING",
-        errorType: null
-    },
-    {
-        id: "MSG004",
-        partner: "Amazon",
-        docType: "850",
-        direction: "OUTBOUND",
-        status: "FAILED",
-        errorType: "MAPPING"
-    }
-];
-
 export default function Monitoring({ filter, messages, onSelectMessage }) {
     const filteredMessages = messages.filter((msg) => {
         if (filter === "INBOUND") return msg.direction === "INBOUND";
@@ -55,6 +20,8 @@ export default function Monitoring({ filter, messages, onSelectMessage }) {
                         <th>Doc</th>
                         <th>Direction</th>
                         <th>Status</th>
+                        <th>Stage</th> {/* ✅ NEW */}
+                        <th>ACK</th>
                     </tr>
                 </thead>
 
@@ -72,6 +39,8 @@ export default function Monitoring({ filter, messages, onSelectMessage }) {
                             <td>
                                 <StatusBadge status={msg.status} />
                             </td>
+                            <td>{msg.stage}</td> {/* ✅ NEW */}
+                            <td>{msg.ackCode ? msg.ackCode : "-"}</td>
                         </tr>
                     ))}
                 </tbody>

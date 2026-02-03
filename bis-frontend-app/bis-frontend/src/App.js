@@ -2,6 +2,9 @@ import { useState } from "react";
 import Sidebar from "./layout/Sidebar";
 import Monitoring from "./pages/Monitoring";
 import MessageDetails from "./pages/MessageDetails";
+import { executeValidation } from "./utils/executeValidation";
+import { sampleInput } from "./data/sampleInput";
+
 
 const INITIAL_MESSAGES = [
   {
@@ -10,6 +13,7 @@ const INITIAL_MESSAGES = [
     docType: "850",
     direction: "INBOUND",
     status: "FAILED",
+    stage: "VALIDATION",
     errorType: "VALIDATION"
   },
   {
@@ -18,7 +22,10 @@ const INITIAL_MESSAGES = [
     docType: "810",
     direction: "OUTBOUND",
     status: "SUCCESS",
-    errorType: null
+    stage: "ACK",
+    errorType: null,
+    ackCode: "997",
+    ackMessage: "Accepted"
   },
   {
     id: "MSG003",
@@ -26,6 +33,7 @@ const INITIAL_MESSAGES = [
     docType: "856",
     direction: "INBOUND",
     status: "WAITING",
+    stage: "ENVELOPE",
     errorType: null
   },
   {
@@ -34,8 +42,11 @@ const INITIAL_MESSAGES = [
     docType: "850",
     direction: "OUTBOUND",
     status: "FAILED",
+    stage: "MAPPING",
     errorType: "MAPPING",
-    mappingVersionUsed: 1
+    mappingVersionUsed: 1,
+    ackCode: "999",
+    ackMessage: "Rejected"
   }
 ];
 
@@ -44,34 +55,44 @@ function App() {
   const [messages, setMessages] = useState(INITIAL_MESSAGES);
   const [selectedMessage, setSelectedMessage] = useState(null);
 
-  const handleReprocess = async (messageId) => {
-    const msg = messages.find((m) => m.id === messageId);
-    if (!msg) return;
+  // BIS runtime reprocess
+  const handleReprocess = (messageId) => {
+    setMessages(prev =>
+      prev.map(msg => {
+        if (msg.id !== messageId) return msg;
 
-    const mappingId = `MAP_${msg.docType}_IN`;
+        // 🔍 VALIDATION
+        const validation = executeValidation(sampleInput);
 
-    const latest = await window.mappingAPI.getLatestMapping(mappingId);
+        if (!validation.isValid) {
+          return {
+            ...msg,
+            stage: "VALIDATION",
+            status: "FAILED",
+            errorType: "VALIDATION",
+            validationErrors: validation.errors,
+            ackCode: "999",
+            ackMessage: "Rejected"
+          };
+        }
 
-    if (msg.mappingVersionUsed >= latest.version) {
-      alert("Reprocess blocked: mapping not updated yet");
-      return;
-    }
-
-    setMessages((prev) =>
-      prev.map((m) => {
-        if (m.id !== messageId) return m;
-
+        // 🔄 MAPPING SUCCESS → ACK
         return {
-          ...m,
+          ...msg,
+          stage: "ACK",
           status: "SUCCESS",
           errorType: null,
-          mappingVersionUsed: latest.version
+          validationErrors: [],
+          ackCode: "997",
+          ackMessage: "Accepted"
         };
       })
     );
 
     setSelectedMessage(null);
   };
+
+
 
   return (
     <div style={{ display: "flex", height: "100vh" }}>

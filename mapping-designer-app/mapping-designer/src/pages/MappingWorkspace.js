@@ -4,6 +4,7 @@ import BICMDEditor from "./BICMDEditor";
 import { parseBICMD } from "../utils/bicmdParser";
 import { sampleInput } from "../data/sampleInput";
 import { executeMapping } from "../utils/executeMapping";
+import { mappingRegistry } from "../data/mappingRegistry";
 import {
     sourceStructure,
     targetStructure
@@ -23,6 +24,10 @@ END
     const [errors, setErrors] = useState([]);
     const [preview, setPreview] = useState(null);
     const [runtimeErrors, setRuntimeErrors] = useState([]);
+    const mappingId = "MAP_850_IN";
+
+    const [currentVersion, setCurrentVersion] = useState(mappingRegistry[mappingId].length);
+    const [status, setStatus] = useState("DRAFT");
 
     // 🔹 RULE-AWARE INSERTION
     const insertSnippetRuleAware = (text, snippet) => {
@@ -92,8 +97,69 @@ END
         setRuntimeErrors([]);
     }, [bicmdText]);
 
+    useEffect(() => {
+        const active = mappingRegistry[mappingId].find(
+            (m) => m.status === "ACTIVE"
+        );
+
+        if (active) {
+            setBicmdText(active.bicmd);   // triggers the parser useEffect automatically
+            setCurrentVersion(active.version + 1);
+            setStatus("DRAFT");
+        }
+    }, []);
+
+
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
+
+            <div
+                style={{
+                    padding: "8px 12px",
+                    borderBottom: "1px solid #d1d5db",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    backgroundColor: "#f9fafb"
+                }}
+            >
+                <div>
+                    <strong>Mapping:</strong> {mappingId} <br />
+                    <strong>Version:</strong> v{currentVersion}{" "}
+                    <span
+                        style={{
+                            marginLeft: "8px",
+                            color: status === "DRAFT" ? "#92400e" : "#065f46"
+                        }}
+                    >
+                        ({status})
+                    </span>
+                </div>
+
+                <button
+                    disabled={errors.length > 0}
+                    onClick={() => {
+                        // Supersede old ACTIVE
+                        mappingRegistry[mappingId].forEach((m) => {
+                            if (m.status === "ACTIVE") m.status = "SUPERSEDED";
+                        });
+
+                        // Publish new ACTIVE
+                        mappingRegistry[mappingId].push({
+                            version: currentVersion,
+                            status: "ACTIVE",
+                            bicmd: bicmdText,
+                            activatedAt: new Date().toISOString()
+                        });
+
+                        setStatus("ACTIVE");
+                        alert(`Mapping ${mappingId} v${currentVersion} activated`);
+                    }}
+                >
+                    🚀 Publish (Activate)
+                </button>
+            </div>
+
 
             {/* TOP: STRUCTURES */}
             <div style={{ display: "flex", height: "40%", borderBottom: "1px solid #d1d5db" }}>

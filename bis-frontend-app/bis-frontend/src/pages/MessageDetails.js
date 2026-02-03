@@ -1,4 +1,7 @@
 import { useState } from "react";
+import { hasNewerActiveMapping } from "../api/bisRuntimeApi";
+
+const STAGE_ORDER = ["ENVELOPE", "VALIDATION", "MAPPING", "ACK"];
 
 export default function MessageDetails({ message, onBack, onReprocess }) {
     const [activeTab, setActiveTab] = useState("ENVELOPE");
@@ -6,10 +9,34 @@ export default function MessageDetails({ message, onBack, onReprocess }) {
     if (!message) return null;
 
     const isFailed = message.status === "FAILED";
-    const errorType = message.errorType; // ENVELOPE | VALIDATION | MAPPING | null
+    const errorType = message.errorType;
 
     // BIS rule: only mapping errors can be reprocessed
     const canReprocess = errorType === "MAPPING";
+
+    const handleReprocess = () => {
+        const mappingId = `MAP_${message.docType}_IN`;
+
+        if (!hasNewerActiveMapping(mappingId, message.mappingVersionUsed)) {
+            alert("Reprocess blocked: no newer ACTIVE mapping available");
+            return;
+        }
+
+        onReprocess(message.id);
+    };
+
+    const getTabStyle = (tab) => {
+        const tabIndex = STAGE_ORDER.indexOf(tab);
+        const currentIndex = STAGE_ORDER.indexOf(message.stage);
+
+        if (tabIndex < currentIndex) {
+            return { backgroundColor: "#22c55e", color: "#fff" }; // completed
+        }
+        if (tab === message.stage) {
+            return { backgroundColor: "#2563eb", color: "#fff" }; // current
+        }
+        return { backgroundColor: "#e5e7eb", color: "#000" }; // future
+    };
 
     return (
         <div style={{ padding: "20px" }}>
@@ -25,19 +52,29 @@ export default function MessageDetails({ message, onBack, onReprocess }) {
                 <strong>Direction:</strong> {message.direction}
             </p>
 
+            <p>
+                <strong>Stage:</strong> {message.stage}
+            </p>
+
+            <p>
+                <strong>ACK:</strong>{" "}
+                {message.ackCode
+                    ? `${message.ackCode} (${message.ackMessage})`
+                    : "Pending"}
+            </p>
+
             {/* Tabs */}
             <div style={{ marginTop: "16px" }}>
-                {["ENVELOPE", "VALIDATION", "MAPPING", "ACK", "ERROR"].map((tab) => (
+                {STAGE_ORDER.concat("ERROR").map((tab) => (
                     <button
                         key={tab}
                         onClick={() => setActiveTab(tab)}
                         style={{
                             marginRight: "8px",
                             padding: "6px 12px",
-                            backgroundColor: activeTab === tab ? "#2563eb" : "#e5e7eb",
-                            color: activeTab === tab ? "#fff" : "#000",
                             border: "none",
-                            cursor: "pointer"
+                            cursor: "pointer",
+                            ...getTabStyle(tab)
                         }}
                     >
                         {tab}
@@ -57,65 +94,68 @@ export default function MessageDetails({ message, onBack, onReprocess }) {
 
             {/* VALIDATION */}
             {activeTab === "VALIDATION" && (
-                <>
-                    {errorType === "VALIDATION" ? (
-                        <p style={{ color: "red" }}>
-                            ❌ Validation failed: Mandatory segment N1 missing
-                        </p>
-                    ) : (
-                        <p style={{ color: "green" }}>
-                            ✔ Validation successful
-                        </p>
-                    )}
-                </>
+                message.validationErrors && message.validationErrors.length > 0 ? (
+                    <ul style={{ color: "red" }}>
+                        {message.validationErrors.map((err, idx) => (
+                            <li key={idx}>
+                                [{err.code}] {err.message}
+                            </li>
+                        ))}
+                    </ul>
+                ) : (
+                    <p style={{ color: "green" }}>
+                        ✔ Validation successful
+                    </p>
+                )
             )}
+
 
             {/* MAPPING */}
             {activeTab === "MAPPING" && (
-                <>
-                    {errorType === "MAPPING" ? (
-                        <p style={{ color: "red" }}>
-                            ❌ Mapping failed: PO1 loop not generated
-                        </p>
-                    ) : errorType ? (
-                        <p>Mapping not executed due to earlier failure</p>
-                    ) : (
-                        <p>
-                            Mapping MAP_{message.docType}_{message.direction} applied
-                        </p>
-                    )}
-                </>
+                errorType === "MAPPING" ? (
+                    <p style={{ color: "red" }}>
+                        ❌ Mapping failed: PO1 loop not generated
+                    </p>
+                ) : errorType ? (
+                    <p>Mapping not executed due to earlier failure</p>
+                ) : (
+                    <p>
+                        Mapping MAP_{message.docType}_IN applied
+                    </p>
+                )
             )}
 
             {/* ACK */}
             {activeTab === "ACK" && (
                 <p>
-                    {isFailed ? "999 Rejected" : "997 Accepted"}
+                    {message.ackCode === "999"
+                        ? "999 Rejected"
+                        : message.ackCode === "997"
+                            ? "997 Accepted"
+                            : "Pending"}
                 </p>
             )}
 
             {/* ERROR */}
             {activeTab === "ERROR" && (
-                <>
-                    {errorType ? (
-                        <pre>
-                            STAGE: {errorType}
-                            ERROR DETAILS:
-                            {errorType === "VALIDATION" && "Missing mandatory segment N1"}
-                            {errorType === "MAPPING" && "Target PO1 loop not generated"}
-                            {errorType === "ENVELOPE" && "ISA control number mismatch"}
-                        </pre>
-                    ) : (
-                        <p>No errors found</p>
-                    )}
-                </>
+                errorType ? (
+                    <pre>
+                        STAGE: {message.stage}
+                        ERROR DETAILS:
+                        {errorType === "VALIDATION" && "Missing mandatory segment N1"}
+                        {errorType === "MAPPING" && "Target PO1 loop not generated"}
+                        {errorType === "ENVELOPE" && "ISA control number mismatch"}
+                    </pre>
+                ) : (
+                    <p>No errors found</p>
+                )
             )}
 
-            {/* REPROCESS LOGIC */}
+            {/* REPROCESS */}
             {canReprocess ? (
                 <button
                     style={{ marginTop: "16px" }}
-                    onClick={() => onReprocess(message.id)}
+                    onClick={handleReprocess}
                 >
                     🔁 Reprocess Message
                 </button>
