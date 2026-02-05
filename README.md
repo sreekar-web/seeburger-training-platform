@@ -1,23 +1,189 @@
 SEEBURGER Training Platform
 
-This repository is a training and simulation platform inspired by SEEBURGER BIS.
-It is designed to help practice EDI message monitoring, validation, mapping, and ACK handling in a controlled environment.
+This repository is a hands-on training and simulation platform inspired by SEEBURGER BIS.
+It recreates the design-time and run-time separation of BIS, allowing users to practice:
 
-The platform currently consists of two independent frontend applications and one backend runtime API, reflecting the real separation between design-time and run-time components in BIS.
+Mapping design (BICMD-style)
+
+Partner-specific validation
+
+Message lifecycle monitoring
+
+ACK generation (997 / 999 with AK3 / AK4)
+
+Reprocess logic
+
+Backend-driven runtime execution
+
+The goal of this project is functional and behavioral accuracy, not production deployment.
 
 Repository Structure
 seeburger-training-platform/
 ├── backend/
+│   ├── server.js
+│   ├── routes/
+│   │   └── messages.js
+│   ├── store/
+│   │   └── messageStore.js
+│   ├── utils/
+│   │   ├── executeValidation.js
+│   │   ├── executeMapping.js
+│   │   └── generateAck.js
+│   └── data/
+│       └── validationProfiles.js
+│
 ├── bis-frontend-app/
 │   └── bis-frontend/
+│
 ├── mapping-designer-app/
 │   └── mapping-designer/
+│
 ├── docs/
 ├── package.json
 └── README.md
 
-Applications Overview
-1. BIS Frontend (Monitoring & Runtime UI)
+Architecture Overview
+
+The platform intentionally mirrors SEEBURGER BIS architecture:
+
+Mapping Designer (design-time)
+        |
+        |  Publish & Activate Mapping
+        v
+Backend Runtime (single source of truth)
+        ^
+        |  Fetch Messages / Reprocess
+        |
+BIS Frontend (runtime monitoring UI)
+
+
+Mapping Designer → design-time only
+
+Backend → owns validation, mapping, ACKs, message state
+
+BIS Frontend → display & control only (no business logic)
+
+Applications
+1️⃣ Mapping Designer (Design-Time Tool)
+
+Path
+
+mapping-designer-app/mapping-designer
+
+
+Purpose
+
+Author mappings using a BICMD-style editor
+
+Preview mappings
+
+Publish and activate mappings in the backend runtime
+
+Implemented Features
+
+Source structure tree (segments, loops, elements)
+
+Target structure tree
+
+Element-level drag & drop
+
+BICMD rule editor (RULE / FROM / TO / TYPE / LOOP)
+
+Loop context handling (e.g. PO1[*])
+
+Mapping rule parsing
+
+Mapping execution preview
+
+Mapping versioning
+
+Publish mapping to backend
+
+Activate mapping version
+
+Run
+
+cd mapping-designer-app/mapping-designer
+npm install
+npm start
+
+
+Runs on:
+
+http://localhost:3000
+
+2️⃣ Backend Runtime API
+
+Path
+
+backend
+
+
+Purpose
+
+Central runtime engine (single source of truth)
+
+Executes validation, mapping, and ACK generation
+
+Stores messages and mappings in memory
+
+Bridges Mapping Designer and BIS Frontend
+
+Run
+
+cd backend
+npm install
+node server.js
+
+
+Runs on:
+
+http://localhost:4000
+
+Backend Endpoints
+Process Message (runtime ingestion)
+POST /messages/process
+
+
+Payload example:
+
+{
+  "id": "MSG001",
+  "partner": "Walmart",
+  "docType": "850",
+  "direction": "INBOUND"
+}
+
+
+Behavior:
+
+Runs validation
+
+Runs mapping (if valid)
+
+Generates ACK (997 / 999)
+
+Stores message lifecycle
+
+Fetch Messages (monitoring)
+GET /messages
+
+
+Returns all processed messages for monitoring UI.
+
+Reprocess Message
+POST /messages/reprocess/:id
+
+
+Rules:
+
+Allowed only for mapping errors
+
+Uses latest active mapping
+
+Regenerates ACK
+
+3️⃣ BIS Frontend (Runtime Monitoring UI)
 
 Path
 
@@ -26,19 +192,19 @@ bis-frontend-app/bis-frontend
 
 Purpose
 
-Simulates the BIS monitoring landscape
+Runtime monitoring UI
 
-Displays message lifecycle and processing stages
+Displays backend-driven message lifecycle
 
-Executes validation, mapping, and ACK logic (currently local utilities)
+Triggers backend reprocess
 
-Key Features Implemented
+Implemented Features
 
-Message monitoring dashboard
+Monitoring dashboard
 
-Filtering (INBOUND / OUTBOUND / ERRORS)
+Filters (INBOUND / OUTBOUND / ERRORS)
 
-Message drill-down view
+Message drill-down
 
 Stage tabs:
 
@@ -52,195 +218,43 @@ ACK
 
 ERROR
 
-Partner-specific validation rules
+Partner-specific validation results
 
 Validation severity (ERROR vs WARNING)
 
-Mapping execution preview
+ACK display (997 / 999 with AK3 / AK4)
 
-Reprocess logic:
+Backend-driven reprocess
 
-Allowed only for mapping errors
-
-Requires newer ACTIVE mapping
-
-ACK handling:
-
-997 Accepted
-
-999 Rejected
-
-AK3 (segment errors)
-
-AK4 (element errors)
-
-Run Instructions
+Run
 
 cd bis-frontend-app/bis-frontend
 npm install
 npm start
 
 
-Runs on
+Runs on:
 
 http://localhost:3000
 
-2. Mapping Designer (Design-time Tool)
-
-Path
-
-mapping-designer-app/mapping-designer
-
-
-Purpose
-
-Simulates the BIS Mapping Designer
-
-Used to author, preview, and publish mappings
-
-Key Features Implemented
-
-Source structure tree (segments, loops, elements)
-
-Target structure tree
-
-Element-level drag & drop
-
-BICMD-style text editor
-
-Rule-aware editor behavior:
-
-RULE / FROM / TO pairing
-
-LOOP context handling (e.g. PO1[*])
-
-Mapping rule parsing
-
-Mapping execution preview
-
-Mapping versioning
-
-Publish mapping to backend runtime
-
-Activate mapping version
-
-Run Instructions
-
-cd mapping-designer-app/mapping-designer
-npm install
-npm start
-
-
-Runs on
-
-http://localhost:3000
-
-
-Note: This application is design-time only and does not process messages directly.
-
-3. Backend Runtime API
-
-Path
-
-backend
-
-
-Purpose
-
-Acts as a central runtime engine
-
-Serves as the integration point between Mapping Designer and BIS Frontend
-
-Stores mappings and active versions (in-memory)
-
-Executes validation, mapping, and ACK generation
-
-Implemented Capabilities
-
-In-memory mapping storage
-
-Mapping publish API
-
-Mapping activation API
-
-Runtime processing endpoint:
-
-Validation
-
-Mapping execution
-
-ACK generation (997 / 999 with AK3 / AK4)
-
-Run Instructions
-
-cd backend
-npm install
-node server.js
-
-
-Runs on
-
-http://localhost:4000
-
-
-Available Endpoints
-
-POST /api/mappings – publish a mapping
-
-POST /api/mappings/:id/activate – activate mapping version
-
-POST /api/runtime/process – process a message through validation → mapping → ACK
-
-No environment variables or database setup are required at this stage.
-
-Current Integration Status
-
-Mapping Designer can publish and activate mappings in the backend
-
-Backend acts as the single source of truth for mappings
-
-BIS Frontend currently runs with local runtime utilities
-
-Full end-to-end frontend ↔ backend execution wiring is in progress
-
-This staged approach mirrors real SEEBURGER BIS architecture:
-
-Mapping Designer = design-time
-
-BIS Frontend = runtime UI
-
-Backend = runtime engine
-
-Validation & Mapping Features (Implemented)
+Validation & ACK Capabilities
 Validation
 
 Partner-specific validation profiles
 
 Element-level validation
 
-Mandatory element checks
+Mandatory checks
 
 Type checks
 
 Code list checks
 
-Validation severity:
+Severity support:
 
 ERROR → blocks mapping
 
 WARNING → allows mapping
-
-Validation stage reporting
-
-Mapping
-
-Rule-based mapping engine
-
-Loop-aware execution (PO1[*])
-
-Mapping preview output
-
-Version-aware mapping activation
 
 ACK Handling
 
@@ -248,67 +262,81 @@ ACK Handling
 
 999 Rejected
 
-AK3 segment error details
+AK3 (segment-level errors)
 
-AK4 element error details
+AK4 (element-level errors)
 
-ACK displayed in monitoring UI
+ACKs generated centrally in backend
 
-What Is Not Implemented Yet (By Design)
+How to Verify End-to-End Flow
+1️⃣ Start backend
+cd backend
+node server.js
 
-Persistent database storage
+2️⃣ Start Mapping Designer
+cd mapping-designer-app/mapping-designer
+npm start
 
-End-to-end inbound EDI file upload
 
-Authentication / user roles
+Create mapping
 
-Production deployment configuration
+Publish & Activate
 
-Full BIS Frontend ↔ Backend runtime wiring
+3️⃣ Inject a message
+curl -X POST http://localhost:4000/messages/process \
+  -H "Content-Type: application/json" \
+  -d '{"id":"MSG100","partner":"Walmart","docType":"850","direction":"INBOUND"}'
 
-How This Repository Should Be Validated
+4️⃣ Start BIS Frontend
+cd bis-frontend-app/bis-frontend
+npm start
 
-For automated or manual validation:
 
-Each frontend application should start successfully via npm start
+Message appears in Monitoring
 
-Backend API should start via node server.js
+Click message → view stages
 
-Mapping Designer should be able to:
+ACK visible
 
-Create rules
+Reprocess works (mapping errors only)
 
-Preview mapping
+Codex / CI Notes
 
-Publish mapping
+Both React apps run long-lived dev servers
 
-Activate mapping
+Codex and CI runners will terminate them after a timeout
 
-Backend should store and activate mappings in memory
+Successful compilation before timeout = valid setup
 
-BIS Frontend should:
+No automated E2E tests are included by design
 
-Display message lifecycle
+What Is Not Implemented (Intentionally)
 
-Execute validation and mapping preview
+Database persistence
 
-Generate correct ACKs with AK3 / AK4
+Authentication / roles
+
+Inbound EDI file parsing
+
+Production deployment config
 
 Project Intent
 
-This repository is intended as a learning and training platform, not a production system.
-The focus is on functional accuracy and behavioral similarity to SEEBURGER BIS rather than infrastructure completeness.
+This project is intended as a learning and training platform, not a production system.
+It focuses on accurate SEEBURGER BIS behavior and lifecycle modeling.
 
-Next Planned Steps
+Next Possible Enhancements
 
-Connect BIS Frontend runtime execution to backend /api/runtime/process
+Persistent storage (SQLite/Postgres)
 
-Remove frontend-local execution utilities
+Inbound file upload & parsing
 
-Add inbound file ingestion simulation
+Partner agreement UI
 
-Add persistence layer (database)
+Mapping function library (LOOKUP, CONCAT, IF)
+
+Polling / auto-refresh in monitoring
 
 Summary
 
-This project currently provides a faithful simulation of BIS design-time and run-time behavior, suitable for hands-on practice with validation, mapping, and ACK processing.
+This repository provides a realistic, backend-driven simulation of SEEBURGER BIS, covering design-time mapping, runtime processing, validation, ACK handling, and monitoring.

@@ -1,6 +1,19 @@
+import { useEffect } from "react";
 import StatusBadge from "../components/StatusBadge";
 
-export default function Monitoring({ filter, messages, onSelectMessage }) {
+export default function Monitoring({
+    filter,
+    messages,
+    setMessages,
+    onSelectMessage
+}) {
+    useEffect(() => {
+        fetch("http://localhost:4000/messages")
+            .then((res) => res.json())
+            .then((data) => setMessages(data))
+            .catch((err) => console.error("Failed to fetch messages", err));
+    }, [setMessages]);
+
     const filteredMessages = messages.filter((msg) => {
         if (filter === "INBOUND") return msg.direction === "INBOUND";
         if (filter === "OUTBOUND") return msg.direction === "OUTBOUND";
@@ -20,8 +33,6 @@ export default function Monitoring({ filter, messages, onSelectMessage }) {
                         <th>Doc</th>
                         <th>Direction</th>
                         <th>Status</th>
-                        <th>Stage</th> {/* ✅ NEW */}
-                        <th>ACK</th>
                     </tr>
                 </thead>
 
@@ -39,8 +50,6 @@ export default function Monitoring({ filter, messages, onSelectMessage }) {
                             <td>
                                 <StatusBadge status={msg.status} />
                             </td>
-                            <td>{msg.stage}</td> {/* ✅ NEW */}
-                            <td>{msg.ackCode ? msg.ackCode : "-"}</td>
                         </tr>
                     ))}
                 </tbody>
