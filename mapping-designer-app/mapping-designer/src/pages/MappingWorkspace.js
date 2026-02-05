@@ -4,13 +4,15 @@ import BICMDEditor from "./BICMDEditor";
 import { parseBICMD } from "../utils/bicmdParser";
 import { sampleInput } from "../data/sampleInput";
 import { executeMapping } from "../utils/executeMapping";
-import { mappingRegistry } from "../data/mappingRegistry";
 import {
     sourceStructure,
     targetStructure
 } from "../data/sampleStructures";
+import { publishMapping, activateMapping } from "../api/runtimeApi";
 
 export default function MappingWorkspace() {
+    const mappingId = "MAP_850_IN";
+
     const [bicmdText, setBicmdText] = useState(`
 RULE RULE_1
   FROM /X12_850/GS/ST/PO1_LOOP/PO1/PO101
@@ -24,69 +26,10 @@ END
     const [errors, setErrors] = useState([]);
     const [preview, setPreview] = useState(null);
     const [runtimeErrors, setRuntimeErrors] = useState([]);
-    const mappingId = "MAP_850_IN";
-
-    const [currentVersion, setCurrentVersion] = useState(mappingRegistry[mappingId].length);
+    const [currentVersion, setCurrentVersion] = useState(1);
     const [status, setStatus] = useState("DRAFT");
 
-    // 🔹 RULE-AWARE INSERTION
-    const insertSnippetRuleAware = (text, snippet) => {
-        const lines = text.split("\n");
-
-        const incompleteRuleStart = findLastIncompleteRuleIndex(lines);
-
-        // Case 1: Add to last incomplete RULE
-        if (incompleteRuleStart !== null) {
-            for (let i = incompleteRuleStart + 1; i < lines.length; i++) {
-                if (lines[i].startsWith("END")) {
-                    lines.splice(i, 0, "  " + snippet);
-                    return lines.join("\n");
-                }
-            }
-        }
-
-        // Case 2: Create new RULE
-        const ruleNumber = (text.match(/RULE /g) || []).length + 1;
-
-        return (
-            text +
-            `\n\nRULE RULE_${ruleNumber}\n` +
-            `  ${snippet}\n` +
-            `END\n`
-        );
-    };
-
-
-    const findLastIncompleteRuleIndex = (lines) => {
-        let currentRule = null;
-
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].startsWith("RULE ")) {
-                currentRule = {
-                    start: i,
-                    hasFrom: false,
-                    hasTo: false
-                };
-            }
-
-            if (currentRule) {
-                if (lines[i].trim().startsWith("FROM ")) currentRule.hasFrom = true;
-                if (lines[i].trim().startsWith("TO ")) currentRule.hasTo = true;
-
-                if (lines[i].startsWith("END")) {
-                    if (!currentRule.hasFrom || !currentRule.hasTo) {
-                        return currentRule.start;
-                    }
-                    currentRule = null;
-                }
-            }
-        }
-
-        return null;
-    };
-
-
-    // 🔹 BICMD → rules + validation
+    // Parse BICMD → rules
     useEffect(() => {
         const { rules, errors } = parseBICMD(bicmdText);
         setRules(rules);
@@ -97,73 +40,63 @@ END
         setRuntimeErrors([]);
     }, [bicmdText]);
 
-    useEffect(() => {
-        const active = mappingRegistry[mappingId].find(
-            (m) => m.status === "ACTIVE"
-        );
-
-        if (active) {
-            setBicmdText(active.bicmd);   // triggers the parser useEffect automatically
-            setCurrentVersion(active.version + 1);
-            setStatus("DRAFT");
+    const handlePublishAndActivate = async () => {
+        if (errors.length > 0) {
+            alert("Cannot publish mapping with BICMD errors");
+            return;
         }
-    }, []);
 
+        const mappingPayload = {
+            id: `${mappingId}_v${currentVersion}`,
+            docType: "850",
+            version: currentVersion,
+            bicmd: bicmdText,
+            rules,
+            active: false
+        };
+
+        try {
+            await publishMapping(mappingPayload);
+            await activateMapping(mappingPayload.id);
+
+            setStatus("ACTIVE");
+            setCurrentVersion((v) => v + 1);
+
+            alert(
+                `Mapping ${mappingId} v${mappingPayload.version} published and activated`
+            );
+        } catch (err) {
+            console.error(err);
+            alert("Failed to publish mapping to backend");
+        }
+    };
 
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
 
+            {/* HEADER */}
             <div
                 style={{
-                    padding: "8px 12px",
+                    padding: "8px",
                     borderBottom: "1px solid #d1d5db",
                     display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    backgroundColor: "#f9fafb"
+                    alignItems: "center"
                 }}
             >
-                <div>
-                    <strong>Mapping:</strong> {mappingId} <br />
-                    <strong>Version:</strong> v{currentVersion}{" "}
-                    <span
-                        style={{
-                            marginLeft: "8px",
-                            color: status === "DRAFT" ? "#92400e" : "#065f46"
-                        }}
-                    >
-                        ({status})
-                    </span>
-                </div>
+                <strong>
+                    Mapping: {mappingId} | Status: {status} | Next Version: v{currentVersion}
+                </strong>
 
                 <button
-                    disabled={errors.length > 0}
-                    onClick={() => {
-                        // Supersede old ACTIVE
-                        mappingRegistry[mappingId].forEach((m) => {
-                            if (m.status === "ACTIVE") m.status = "SUPERSEDED";
-                        });
-
-                        // Publish new ACTIVE
-                        mappingRegistry[mappingId].push({
-                            version: currentVersion,
-                            status: "ACTIVE",
-                            bicmd: bicmdText,
-                            activatedAt: new Date().toISOString()
-                        });
-
-                        setStatus("ACTIVE");
-                        alert(`Mapping ${mappingId} v${currentVersion} activated`);
-                    }}
+                    style={{ marginLeft: "16px" }}
+                    onClick={handlePublishAndActivate}
                 >
-                    🚀 Publish (Activate)
+                    🚀 Publish & Activate
                 </button>
             </div>
 
-
-            {/* TOP: STRUCTURES */}
+            {/* TOP: SOURCE + TARGET STRUCTURES */}
             <div style={{ display: "flex", height: "40%", borderBottom: "1px solid #d1d5db" }}>
-
                 <div style={{ width: "50%", padding: "8px", overflow: "auto", borderRight: "1px solid #d1d5db" }}>
                     <h4>Source Structure</h4>
                     <StructureTree node={sourceStructure} />
@@ -181,7 +114,7 @@ END
                 onClick={() => {
                     const { output, runtimeErrors } = executeMapping(rules, sampleInput);
                     setPreview(output);
-                    setRuntimeErrors(runtimeErrors);
+                    setRuntimeErrors(runtimeErrors || []);
                 }}
                 style={{
                     margin: "6px",
@@ -198,11 +131,6 @@ END
                     bicmd={bicmdText}
                     onChange={setBicmdText}
                     errors={errors}
-                    onDropSnippet={(snippet) => {
-                        setBicmdText(prev =>
-                            insertSnippetRuleAware(prev, snippet)
-                        );
-                    }}
                 />
             </div>
 
