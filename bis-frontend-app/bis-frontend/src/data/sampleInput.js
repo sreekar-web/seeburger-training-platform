@@ -25,7 +25,7 @@ export const sampleInput = {
         {
             PO101: "SKU-001",
             PO102: 2,
-            PO103: "EA",
+            PO103: "KG",
             PO104: 10
         },
         {

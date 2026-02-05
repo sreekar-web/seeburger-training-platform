@@ -1,9 +1,10 @@
 import { useState } from "react";
 import Sidebar from "./layout/Sidebar";
+import { sampleInput } from "./data/sampleInput";
 import Monitoring from "./pages/Monitoring";
 import MessageDetails from "./pages/MessageDetails";
 import { executeValidation } from "./utils/executeValidation";
-import { sampleInput } from "./data/sampleInput";
+import { generateAck } from "./utils/generateAck";
 
 
 const INITIAL_MESSAGES = [
@@ -61,36 +62,52 @@ function App() {
       prev.map(msg => {
         if (msg.id !== messageId) return msg;
 
-        // 🔍 VALIDATION
-        const validation = executeValidation(sampleInput);
+        const validation = executeValidation(
+          sampleInput,
+          msg.partner,
+          msg.docType
+        );
 
         if (!validation.isValid) {
+          const ack = generateAck({
+            partner: msg.partner,
+            docType: msg.docType,
+            validationErrors: validation.errors,
+            success: false
+          });
+
           return {
             ...msg,
             stage: "VALIDATION",
             status: "FAILED",
             errorType: "VALIDATION",
             validationErrors: validation.errors,
-            ackCode: "999",
-            ackMessage: "Rejected"
+            ackCode: ack.ackCode,
+            ackDetails: ack
           };
         }
 
-        // 🔄 MAPPING SUCCESS → ACK
+        const ack = generateAck({
+          partner: msg.partner,
+          docType: msg.docType,
+          success: true
+        });
+
         return {
           ...msg,
           stage: "ACK",
           status: "SUCCESS",
           errorType: null,
           validationErrors: [],
-          ackCode: "997",
-          ackMessage: "Accepted"
+          ackCode: ack.ackCode,
+          ackDetails: ack
         };
       })
     );
 
     setSelectedMessage(null);
   };
+
 
 
 

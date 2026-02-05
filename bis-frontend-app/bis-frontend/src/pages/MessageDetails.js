@@ -126,15 +126,40 @@ export default function MessageDetails({ message, onBack, onReprocess }) {
             )}
 
             {/* ACK */}
-            {activeTab === "ACK" && (
-                <p>
-                    {message.ackCode === "999"
-                        ? "999 Rejected"
-                        : message.ackCode === "997"
-                            ? "997 Accepted"
-                            : "Pending"}
-                </p>
+            {activeTab === "ACK" && message.ackDetails && (
+                <div>
+                    <p>
+                        <strong>ACK Code:</strong> {message.ackDetails.ackCode}
+                    </p>
+
+                    {message.ackDetails.ak3.length > 0 && (
+                        <>
+                            <h4>AK3 – Segment Errors</h4>
+                            <ul>
+                                {message.ackDetails.ak3.map((e, i) => (
+                                    <li key={i}>
+                                        Segment {e.segmentId} – {e.errorCode}
+                                    </li>
+                                ))}
+                            </ul>
+                        </>
+                    )}
+
+                    {message.ackDetails.ak4.length > 0 && (
+                        <>
+                            <h4>AK4 – Element Errors</h4>
+                            <ul>
+                                {message.ackDetails.ak4.map((e, i) => (
+                                    <li key={i}>
+                                        Element {e.elementId} – {e.message}
+                                    </li>
+                                ))}
+                            </ul>
+                        </>
+                    )}
+                </div>
             )}
+
 
             {/* ERROR */}
             {activeTab === "ERROR" && (
