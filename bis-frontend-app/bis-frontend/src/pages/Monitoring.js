@@ -1,18 +1,21 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import StatusBadge from "../components/StatusBadge";
+import InjectMessageModal from "../components/InjectMessageModal";
 
-export default function Monitoring({
-    filter,
-    messages,
-    setMessages,
-    onSelectMessage
-}) {
-    useEffect(() => {
+export default function Monitoring({ filter, onSelectMessage }) {
+    const [messages, setMessages] = useState([]);
+    const [showInject, setShowInject] = useState(false);
+
+    const loadMessages = () => {
         fetch("http://localhost:4000/messages")
-            .then((res) => res.json())
-            .then((data) => setMessages(data))
-            .catch((err) => console.error("Failed to fetch messages", err));
-    }, [setMessages]);
+            .then(res => res.json())
+            .then(setMessages)
+            .catch(console.error);
+    };
+
+    useEffect(() => {
+        loadMessages();
+    }, []);
 
     const filteredMessages = messages.filter((msg) => {
         if (filter === "INBOUND") return msg.direction === "INBOUND";
@@ -23,7 +26,12 @@ export default function Monitoring({
 
     return (
         <div style={{ padding: "20px" }}>
-            <h2>Monitoring</h2>
+            <div style={{ display: "flex", justifyContent: "space-between" }}>
+                <h2>Monitoring</h2>
+                <button onClick={() => setShowInject(true)}>
+                    ➕ Inject Message
+                </button>
+            </div>
 
             <table width="100%" cellPadding={10}>
                 <thead>
@@ -54,6 +62,13 @@ export default function Monitoring({
                     ))}
                 </tbody>
             </table>
+
+            {showInject && (
+                <InjectMessageModal
+                    onClose={() => setShowInject(false)}
+                    onInjected={loadMessages}
+                />
+            )}
         </div>
     );
 }

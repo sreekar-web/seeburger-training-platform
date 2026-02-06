@@ -5,15 +5,9 @@ import MessageDetails from "./pages/MessageDetails";
 
 function App() {
   const [filter, setFilter] = useState("ALL");
-  const [messages, setMessages] = useState([]);
   const [selectedMessage, setSelectedMessage] = useState(null);
 
   const handleReprocessUpdate = (updatedMessage) => {
-    setMessages((prev) =>
-      prev.map((m) =>
-        m.id === updatedMessage.id ? updatedMessage : m
-      )
-    );
     setSelectedMessage(updatedMessage);
   };
 
@@ -31,8 +25,6 @@ function App() {
         ) : (
           <Monitoring
             filter={filter}
-            messages={messages}
-            setMessages={setMessages}
             onSelectMessage={setSelectedMessage}
           />
         )}

@@ -121,4 +121,9 @@ router.post("/reprocess/:id", (req, res) => {
     res.json(updated);
 });
 
+// GET all messages (for Monitoring UI)
+router.get("/", (req, res) => {
+    res.json(messages); // messages = in-memory store
+});
+
 export default router;
