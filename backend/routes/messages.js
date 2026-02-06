@@ -33,11 +33,10 @@ router.post("/process", (req, res) => {
         errorType = "VALIDATION";
     }
 
-    // 2️⃣ MAPPING (only if validation passed)
-    let mappingResult = null;
+    // 2️⃣ MAPPING
     if (status === "SUCCESS") {
         stage = "MAPPING";
-        mappingResult = executeMapping(incoming);
+        const mappingResult = executeMapping(incoming);
 
         if (!mappingResult.success) {
             status = "FAILED";
@@ -49,10 +48,7 @@ router.post("/process", (req, res) => {
 
     // 3️⃣ ACK
     stage = "ACK";
-    const ack = generateAck({
-        status,
-        errorType
-    });
+    const ack = generateAck({ status, errorType });
 
     // 4️⃣ STORE MESSAGE
     const storedMessage = {
@@ -74,8 +70,8 @@ router.post("/process", (req, res) => {
 });
 
 /**
- * ✅ GET /messages
- * Returns all processed messages (Monitoring screen)
+ * GET /messages
+ * Monitoring screen
  */
 router.get("/", (req, res) => {
     res.json(getMessages());
@@ -83,7 +79,7 @@ router.get("/", (req, res) => {
 
 /**
  * POST /messages/reprocess/:id
- * Reprocesses a FAILED message (mapping errors only)
+ * Reprocess mapping failures only
  */
 router.post("/reprocess/:id", (req, res) => {
     const msg = getMessageById(req.params.id);
@@ -98,11 +94,10 @@ router.post("/reprocess/:id", (req, res) => {
         });
     }
 
-    // Re-run mapping
     const mappingResult = executeMapping(msg);
 
     if (!mappingResult.success) {
-        return res.json(msg); // still failed
+        return res.json(msg);
     }
 
     const ack = generateAck({
@@ -119,11 +114,6 @@ router.post("/reprocess/:id", (req, res) => {
     });
 
     res.json(updated);
-});
-
-// GET all messages (for Monitoring UI)
-router.get("/", (req, res) => {
-    res.json(messages); // messages = in-memory store
 });
 
 export default router;
