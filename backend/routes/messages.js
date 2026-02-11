@@ -1,5 +1,6 @@
 import express from "express";
 
+import { getActiveMapping } from "../store/mappingsStore.js";
 import { executeValidation } from "../utils/executeValidation.js";
 import { executeMapping } from "../utils/executeMapping.js";
 import { generateAck } from "../utils/generateAck.js";
@@ -14,8 +15,8 @@ import {
 const router = express.Router();
 
 /**
- * POST /messages/process
- * Simulates BIS runtime message ingestion
+ * POST /api/messages/process
+ * Runtime ingestion
  */
 router.post("/process", (req, res) => {
     const incoming = req.body;
@@ -24,6 +25,7 @@ router.post("/process", (req, res) => {
     let stage = "VALIDATION";
     let errorType = null;
     let mappingVersionUsed = null;
+    let mappingResult = { runtimeErrors: [] };
 
     // 1️⃣ VALIDATION
     const validationResult = executeValidation(incoming);
@@ -33,17 +35,24 @@ router.post("/process", (req, res) => {
         errorType = "VALIDATION";
     }
 
-    // 2️⃣ MAPPING
-    let mappingResult = { runtimeErrors: [] };
+    // 2️⃣ MAPPING (only if validation passed)
     if (status === "SUCCESS") {
         stage = "MAPPING";
-        mappingResult = executeMapping([], incoming);
 
-        if (mappingResult.runtimeErrors && mappingResult.runtimeErrors.length > 0) {
+        const activeMapping = getActiveMapping(incoming.docType);
+
+        if (!activeMapping) {
             status = "FAILED";
             errorType = "MAPPING";
         } else {
-            mappingVersionUsed = "v1-latest";
+            mappingResult = executeMapping(activeMapping.rules, incoming);
+
+            if (mappingResult.runtimeErrors?.length > 0) {
+                status = "FAILED";
+                errorType = "MAPPING";
+            } else {
+                mappingVersionUsed = activeMapping.version;
+            }
         }
     }
 
@@ -51,7 +60,6 @@ router.post("/process", (req, res) => {
     stage = "ACK";
     const ack = generateAck(incoming, validationResult, mappingResult);
 
-    // 4️⃣ STORE MESSAGE
     const storedMessage = {
         id: incoming.id,
         partner: incoming.partner,
@@ -71,16 +79,14 @@ router.post("/process", (req, res) => {
 });
 
 /**
- * GET /messages
- * Monitoring screen
+ * GET /api/messages
  */
 router.get("/", (req, res) => {
     res.json(getMessages());
 });
 
 /**
- * POST /messages/reprocess/:id
- * Reprocess mapping failures only
+ * POST /api/messages/reprocess/:id
  */
 router.post("/reprocess/:id", (req, res) => {
     const msg = getMessageById(req.params.id);
@@ -95,10 +101,18 @@ router.post("/reprocess/:id", (req, res) => {
         });
     }
 
-    const mappingResult = executeMapping([], msg);
+    const activeMapping = getActiveMapping(msg.docType);
 
-    if (mappingResult.runtimeErrors && mappingResult.runtimeErrors.length > 0) {
-        return res.json(msg);
+    if (!activeMapping) {
+        return res.status(400).json({
+            error: "No active mapping available"
+        });
+    }
+
+    const mappingResult = executeMapping(activeMapping.rules, msg);
+
+    if (mappingResult.runtimeErrors?.length > 0) {
+        return res.json(msg); // still failing
     }
 
     const ack = generateAck(msg, { isValid: true }, mappingResult);
@@ -107,7 +121,7 @@ router.post("/reprocess/:id", (req, res) => {
         status: "SUCCESS",
         stage: "ACK",
         errorType: null,
-        mappingVersionUsed: mappingResult.mappingVersion,
+        mappingVersionUsed: activeMapping.version,
         ack
     });
 

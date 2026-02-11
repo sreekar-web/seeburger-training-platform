@@ -71,6 +71,47 @@ END
         }
     };
 
+    const insertSnippetRuleAware = (text, snippet, cursorPos) => {
+        const textBeforeCursor = text.substring(0, cursorPos);
+        const lineIndex = textBeforeCursor.split("\n").length - 1;
+        const lines = text.split("\n");
+
+        // Find if drop happened inside a RULE...END block
+        let currentRuleStart = -1;
+        for (let i = lineIndex; i >= 0; i--) {
+            if (lines[i].trim().startsWith("RULE ")) {
+                currentRuleStart = i;
+                break;
+            }
+            // If we hit an END before hitting a RULE (while going backwards), 
+            // it means we are outside any rule block.
+            if (lines[i].trim() === "END" && i < lineIndex) {
+                break;
+            }
+        }
+
+        if (currentRuleStart !== -1) {
+            // Inside a rule! Find its END
+            for (let i = lineIndex; i < lines.length; i++) {
+                if (lines[i].trim() === "END") {
+                    lines.splice(i, 0, "  " + snippet);
+                    return lines.join("\n");
+                }
+            }
+        }
+
+        // Outside rules → Create new one at the end
+        const ruleCount = (text.match(/RULE /g) || []).length + 1;
+        const trimmedText = text.trimEnd();
+        return (
+            (trimmedText ? trimmedText + "\n\n" : "") +
+            `RULE RULE_${ruleCount}\n` +
+            `  ${snippet}\n` +
+            `END\n`
+        );
+    };
+
+
     return (
         <div style={{ display: "flex", flexDirection: "column", height: "100vh" }}>
 
@@ -99,12 +140,17 @@ END
             <div style={{ display: "flex", height: "40%", borderBottom: "1px solid #d1d5db" }}>
                 <div style={{ width: "50%", padding: "8px", overflow: "auto", borderRight: "1px solid #d1d5db" }}>
                     <h4>Source Structure</h4>
-                    <StructureTree node={sourceStructure} />
+                    <StructureTree
+                        node={sourceStructure}
+                    />
                 </div>
 
                 <div style={{ width: "50%", padding: "8px", overflow: "auto" }}>
                     <h4>Target Structure</h4>
-                    <StructureTree node={targetStructure} isTarget />
+                    <StructureTree
+                        node={targetStructure}
+                        isTarget
+                    />
                 </div>
             </div>
 
@@ -131,6 +177,9 @@ END
                     bicmd={bicmdText}
                     onChange={setBicmdText}
                     errors={errors}
+                    onDropSnippet={(snippet, cursorPos) => {
+                        setBicmdText(prev => insertSnippetRuleAware(prev, snippet, cursorPos));
+                    }}
                 />
             </div>
 

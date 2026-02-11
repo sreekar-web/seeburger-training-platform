@@ -1,20 +1,30 @@
-let mappings = [];
+// backend/store/mappingStore.js
 
-export function saveMapping(mapping) {
+const mappings = []; // all versions
+const activeMappings = new Map(); // docType → mappingId
+
+export function addMapping(mapping) {
     mappings.push(mapping);
 }
 
-export function activateMapping(mappingId) {
-    mappings = mappings.map(m => ({
-        ...m,
-        active: m.id === mappingId
-    }));
+export function getMappings() {
+    return mappings;
+}
+
+export function getMappingById(id) {
+    return mappings.find(m => m.id === id);
+}
+
+export function activateMapping(id) {
+    const mapping = getMappingById(id);
+    if (!mapping) return null;
+
+    activeMappings.set(mapping.docType, id);
+    return mapping;
 }
 
 export function getActiveMapping(docType) {
-    return mappings.find(m => m.docType === docType && m.active);
-}
-
-export function getAllMappings() {
-    return mappings;
+    const id = activeMappings.get(docType);
+    if (!id) return null;
+    return getMappingById(id);
 }
