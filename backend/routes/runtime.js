@@ -9,19 +9,10 @@ const router = express.Router();
 router.post("/process", (req, res) => {
     const { message, input } = req.body;
 
-    const validation = executeValidation(
-        input,
-        message.partner,
-        message.docType
-    );
+    const validation = executeValidation(message);
 
     if (!validation.isValid) {
-        const ack = generateAck({
-            partner: message.partner,
-            docType: message.docType,
-            validationErrors: validation.errors,
-            success: false
-        });
+        const ack = generateAck(message, validation, null);
 
         return res.json({
             stage: "VALIDATION",
@@ -40,18 +31,14 @@ router.post("/process", (req, res) => {
         });
     }
 
-    const output = executeMapping(mapping.rules, input);
+    const mappingResult = executeMapping(mapping.rules, input);
 
-    const ack = generateAck({
-        partner: message.partner,
-        docType: message.docType,
-        success: true
-    });
+    const ack = generateAck(message, validation, mappingResult);
 
     res.json({
         stage: "ACK",
         status: "SUCCESS",
-        output,
+        output: mappingResult.output,
         ack
     });
 });

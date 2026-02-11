@@ -28,27 +28,28 @@ router.post("/process", (req, res) => {
     // 1️⃣ VALIDATION
     const validationResult = executeValidation(incoming);
 
-    if (!validationResult.valid) {
+    if (!validationResult.isValid) {
         status = "FAILED";
         errorType = "VALIDATION";
     }
 
     // 2️⃣ MAPPING
+    let mappingResult = { runtimeErrors: [] };
     if (status === "SUCCESS") {
         stage = "MAPPING";
-        const mappingResult = executeMapping(incoming);
+        mappingResult = executeMapping([], incoming);
 
-        if (!mappingResult.success) {
+        if (mappingResult.runtimeErrors && mappingResult.runtimeErrors.length > 0) {
             status = "FAILED";
             errorType = "MAPPING";
         } else {
-            mappingVersionUsed = mappingResult.mappingVersion;
+            mappingVersionUsed = "v1-latest";
         }
     }
 
     // 3️⃣ ACK
     stage = "ACK";
-    const ack = generateAck({ status, errorType });
+    const ack = generateAck(incoming, validationResult, mappingResult);
 
     // 4️⃣ STORE MESSAGE
     const storedMessage = {
@@ -94,16 +95,13 @@ router.post("/reprocess/:id", (req, res) => {
         });
     }
 
-    const mappingResult = executeMapping(msg);
+    const mappingResult = executeMapping([], msg);
 
-    if (!mappingResult.success) {
+    if (mappingResult.runtimeErrors && mappingResult.runtimeErrors.length > 0) {
         return res.json(msg);
     }
 
-    const ack = generateAck({
-        status: "SUCCESS",
-        errorType: null
-    });
+    const ack = generateAck(msg, { isValid: true }, mappingResult);
 
     const updated = updateMessage(msg.id, {
         status: "SUCCESS",

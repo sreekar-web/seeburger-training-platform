@@ -10,10 +10,11 @@ export default function InjectMessageModal({ onClose, onInjected }) {
             id: `MSG_${Date.now()}`,
             partner,
             docType,
-            direction
+            direction,
+            hasPO1: true
         };
 
-        fetch("http://localhost:4000/messages/process", {
+        fetch("http://localhost:4000/api/messages/process", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(payload)

@@ -10,7 +10,7 @@ export default function MessageDetails({
     if (!message) return null;
 
     const handleReprocess = () => {
-        fetch(`http://localhost:4000/messages/reprocess/${message.id}`, {
+        fetch(`http://localhost:4000/api/messages/reprocess/${message.id}`, {
             method: "POST"
         })
             .then((res) => res.json())

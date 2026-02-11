@@ -7,7 +7,7 @@ export default function Monitoring({ filter, onSelectMessage }) {
     const [showInject, setShowInject] = useState(false);
 
     const loadMessages = () => {
-        fetch("http://localhost:4000/messages")
+        fetch("http://localhost:4000/api/messages")
             .then(res => res.json())
             .then(setMessages)
             .catch(console.error);
